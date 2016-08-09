@@ -8,30 +8,16 @@
 
 #include <opendht.h>
 
-void disp(std::string content)
-{
-    std::cout << "\r\n"
-    "\x1b[A\x1b[A " << content << "\n"
-    "\x1b[2K" << std::endl;
-}
+// Nice display with VT100 terminal control escape sequences.
+void disp(std::string content);
 
-std::chrono::milliseconds get_timestamp()
-{
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch());
-}
+// Get timestamp in milliseconds.
+std::chrono::milliseconds get_timestamp();
 
-std::string input(const std::string& prompt)
-{
-    const char* line = readline(prompt.c_str());
-    if(line && *line)
-        add_history(line);
+// Use GNU readline.
+std::string input(const std::string& prompt);
 
-    if(line)
-        return std::string(line);
-    return std::string("");
-}
-
+// Simple format for our messages.
 struct msg : public std::string
 {
     msg(std::string text)
@@ -47,15 +33,17 @@ struct msg : public std::string
 
     static std::string username;
 };
+std::string msg::username;
 
-std::string msg::username = "Anonymous";
-
+// Map type used for message deduplication.
 using map_type = std::unordered_map<std::string, std::chrono::milliseconds>;
-using pair_type = map_type::value_type;
 
 int main(int argc, char** argv)
 {
-    // Create an unordered_map
+    // Use GNU readline history.
+    using_history();
+
+    // Create an unordered_map, for messages deduplication.
     map_type map;
 
     // Use a opendht node.
@@ -64,54 +52,56 @@ int main(int argc, char** argv)
     // Create a brand new identity.
     auto node_identity = dht::crypto::generateIdentity();
 
-    // Run a node with an OS-selected port, using the crypto-layer of opendht.
+    // Run a node with a free port (0), use a separate thread.
     node.run(0, node_identity, true);
 
     // Join the network through an already known node.
     node.bootstrap(argv[1], argv[2]);
 
-    // User input
-    msg::username = input("Nom d'utilisateur : ");
-    std::string chan = input("Salon à joindre : ");
+    // User settings.
+    msg::username = input("Username : ");
+    std::string chan = input("Channel : ");
 
-    // Pack&Put data on the DHT
+    // Pack&Put data on the DHT.
     node.putSigned(chan, msg("Enter the chatroom."));
 
-    // Retrieve past, old unordered messages.
+    // Retrieve past, old unordered messages, ignore-them.
     node.get(chan,
-        [&](const std::vector<std::shared_ptr<dht::Value>>& values) {
-
-            // Callback used for every value found.
+        [&](const std::vector<std::shared_ptr<dht::Value>>& values)
+        {
+            // For every value found...
             for (const auto& value : values)
             {
+                // Unpack then register the value.
                 std::string content = value->unpack<std::string>();
                 map.insert(std::make_pair(content, get_timestamp()));
             }
 
+            // Continue lookup until no values are left.
             return true;
         });
 
-    // Watch for incoming messages
+    // Watch for incoming new messages.
     node.listen(chan,
-        [&](const std::vector<std::shared_ptr<dht::Value>>& values) {
-
-            // Callback used for every value found.
+        [&](const std::vector<std::shared_ptr<dht::Value>>& values)
+        {
+            // For every value found...
             for (const auto& value : values)
             {
+                // Unpack then register and display it, if it's a new value.
                 std::string content = value->unpack<std::string>();
                 if(!map.count(content))
                 {
-                    auto stamp = get_timestamp();
-                    map.insert(std::make_pair(content, stamp));
+                    map.insert(std::make_pair(content, get_timestamp()));
                     disp(content);
                 }
             }
 
-            // Continue or else stop the search ?
+            // Continue lookup until no values are left.
             return true;
         });
 
-    // User input
+    // Read stdin and put messages on the DHT.
     for(;;)
     {
         std::string output = input("");
@@ -135,3 +125,26 @@ int main(int argc, char** argv)
     return 0;
 }
 
+std::chrono::milliseconds get_timestamp()
+{
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch());
+}
+
+void disp(std::string content)
+{
+    std::cout << "\r\n"
+    "\x1b[A\x1b[A " << content << "\n"
+    "\x1b[2K" << std::endl;
+}
+
+std::string input(const std::string& prompt)
+{
+    const char* line = readline(prompt.c_str());
+    if(line && *line)
+        add_history(line);
+
+    if(line)
+        return std::string(line);
+    return std::string("");
+}
