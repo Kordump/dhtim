@@ -85,7 +85,7 @@ int main(int argc, char** argv)
             for (const auto& value : values)
             {
                 std::string content = value->unpack<std::string>();
-                map.insert(std::make_pair(content, 0));
+                map.insert(std::make_pair(content, get_timestamp()));
             }
 
             return true;
