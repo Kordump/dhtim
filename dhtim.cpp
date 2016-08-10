@@ -8,6 +8,9 @@
 
 #include <opendht.h>
 
+constexpr char const * default_bootstrap_host = "bootstrap.ring.cx";
+constexpr char const * default_bootstrap_port = "4222";
+
 // Nice display with VT100 terminal control escape sequences.
 void disp(std::string content);
 
@@ -15,7 +18,7 @@ void disp(std::string content);
 std::chrono::milliseconds get_timestamp();
 
 // Use GNU readline.
-std::string input(const std::string& prompt);
+std::string input(const std::string& prompt, bool& eof);
 
 // Simple format for our messages.
 struct msg : public std::string
@@ -40,15 +43,17 @@ using map_type = std::unordered_map<std::string, std::chrono::milliseconds>;
 
 int main(int argc, char** argv)
 {
-    if(argc != 3)
+    if(argc < 3 || argc > 5)
     {
         std::cout
-            << "Usage : "                                       "\n"
-            << " - " << argv[0] << " <host> <port>"             "\n"
-            << "   - <host>: Host of the bootstrap node."       "\n"
-            << "   - <port>: Port of the bootstrap node."       "\n"
-            << " - " << argv[0] << " bootstrap.ring.cx 4222"    "\n"
-            << std::endl;
+            << "Usage: " << argv[0] << " <username> <channel> [host] [port]\n"
+			<< "\t<username>: Self-assigned username in channel.\n"
+			<< "\t<channel>: Channel to join.\n"
+            << "\t<host>: Host of the bootstrap node (default: "
+				<< default_bootstrap_host << ").\n"
+            << "\t<port>: Port of the bootstrap node (default: "
+				<< default_bootstrap_port << ").\n"
+            << std::flush;
         return 1;
     }
 
@@ -68,11 +73,13 @@ int main(int argc, char** argv)
     node.run(0, node_identity, true);
 
     // Join the network through an already known node.
-    node.bootstrap(argv[1], argv[2]);
+    node.bootstrap(
+			argc >= 4 ? argv[3] : default_bootstrap_host,
+			argc >= 5 ? argv[4] : default_bootstrap_port);
 
     // User settings.
-    msg::username = input("Username : ");
-    std::string chan = input("Channel : ");
+    msg::username = argv[1];
+    std::string chan = argv[2];
 
     // Pack&Put data on the DHT.
     node.putSigned(chan, msg("Enter the chatroom."));
@@ -116,8 +123,10 @@ int main(int argc, char** argv)
     // Read stdin and put messages on the DHT.
     for(;;)
     {
-        std::string output = input("");
-        std::cout << "\x1b[A\x1b[2K\r";
+		bool eof = false;
+        std::string output = input("", eof);
+		if(eof)
+			break;
 
         if(!output.empty())
         {
@@ -145,12 +154,10 @@ std::chrono::milliseconds get_timestamp()
 
 void disp(std::string content)
 {
-    std::cout << "\r\n"
-    "\x1b[A\x1b[A " << content << "\n"
-    "\x1b[2K" << std::endl;
+    std::cout << content << std::endl;
 }
 
-std::string input(const std::string& prompt)
+std::string input(const std::string& prompt, bool& eof)
 {
     const char* line = readline(prompt.c_str());
     if(line && *line)
@@ -158,5 +165,9 @@ std::string input(const std::string& prompt)
 
     if(line)
         return std::string(line);
-    return std::string("");
+	else {
+		eof = true;
+		return std::string("");
+	}
 }
+
