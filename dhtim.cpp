@@ -40,7 +40,7 @@ using map_type = std::unordered_map<std::string, std::chrono::milliseconds>;
 
 int main(int argc, char** argv)
 {
-    if(argc != 2)
+    if(argc != 3)
     {
         std::cout
             << "Usage : "                                       "\n"
