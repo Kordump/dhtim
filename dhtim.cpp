@@ -40,6 +40,18 @@ using map_type = std::unordered_map<std::string, std::chrono::milliseconds>;
 
 int main(int argc, char** argv)
 {
+    if(argc != 2)
+    {
+        std::cout
+            << "Usage : "                                       "\n"
+            << " - " << argv[0] << " <host> <port>"             "\n"
+            << "   - <host>: Host of the bootstrap node."       "\n"
+            << "   - <port>: Port of the bootstrap node."       "\n"
+            << " - " << argv[0] << " bootstrap.ring.cx 4222"    "\n"
+            << std::endl;
+        return 1;
+    }
+
     // Use GNU readline history.
     using_history();
 
